@@ -86,7 +86,7 @@ class DefaultController extends UserAwareController
 
             $elements = [];
             foreach ($valueObjs as $valueObj) {
-                $label = $this->getNicePath($fd, $valueObj, $source);
+                $label = $this->getNicePath($valueObj, $source, $context);
                 $elements[] = $this->formatElement($valueObj, $label);
             }
 
@@ -129,7 +129,7 @@ class DefaultController extends UserAwareController
             $element = Element\Service::getElementById($hit->getId()->getType(), $hit->getId()->getId());
             if ($element->isAllowed('list')) {
                 if ($element->getType() === 'object') {
-                    $label = $this->getNicePath($fd, $element, $source);
+                    $label = $this->getNicePath($valueObj, $source, $context);
                 } else {
                     $label = (string) $element;
                 }

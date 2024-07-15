@@ -69,7 +69,7 @@ pimcore.object.tags.hrefTypeahead = Class.create(pimcore.object.tags.abstract, {
                     fieldName: this.fieldConfig.name,
                     sourceId: this.object.id,
                     formatterClass: this.fieldConfig.pathFormatterClass,
-                    context: this.getContext(),
+                    context: Ext.encode(this.getContext()),
                     class: classParam
                 }
             },
