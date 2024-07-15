@@ -106,7 +106,7 @@ pimcore.object.classes.data.hrefTypeahead = Class.create(pimcore.object.classes.
             autoDestroy: true,
             proxy: {
                 type: 'ajax',
-                url: '/admin/class/get-tree'
+                url: Routing.generate('pimcore_admin_dataobject_class_gettree')
             },
             fields: ["text"]
         });
@@ -122,7 +122,7 @@ pimcore.object.classes.data.hrefTypeahead = Class.create(pimcore.object.classes.
             autoDestroy: true,
             proxy: {
                 type: 'ajax',
-                url: '/admin/class/get-document-types'
+                url: Routing.generate('pimcore_admin_dataobject_class_getdocumenttypes')
             },
             fields: ["text"]
         });
@@ -138,7 +138,7 @@ pimcore.object.classes.data.hrefTypeahead = Class.create(pimcore.object.classes.
             autoDestroy: true,
             proxy: {
                 type: 'ajax',
-                url: '/admin/class/get-asset-types'
+                url: Routing.generate('pimcore_admin_dataobject_class_getassettypes')
             },
             fields: ["text"]
         });
@@ -165,30 +165,14 @@ pimcore.object.classes.data.hrefTypeahead = Class.create(pimcore.object.classes.
                         value: this.datax.width
                     },
                     {
-                        xtype: "checkbox",
-                        fieldLabel: t("lazy_loading"),
-                        name: "lazyLoading",
-                        disabled: this.isInCustomLayoutEditor(),
-                        checked: this.datax.lazyLoading
-                    },
-                    {
                         xtype: "displayfield",
                         hideLabel: true,
-                        value: t('lazy_loading_description'),
-                        cls: "pimcore_extra_label_bottom",
-                        style: "padding-bottom:0;"
-                    },
-                    {
-                        xtype: "displayfield",
-                        hideLabel: true,
-                        value: t('lazy_loading_warning'),
-                        cls: "pimcore_extra_label_bottom",
-                        style: "color:red; font-weight: bold; padding-bottom:0;"
-                    },
+                        value: t('width_explanation')
+                    },    
                     {
                         xtype: 'textfield',
                         width: 600,
-                        fieldLabel: t("path_formatter_class"),
+                        fieldLabel: t("path_formatter_service"),
                         name: 'pathFormatterClass',
                         value: this.datax.pathFormatterClass
                     },
@@ -403,14 +387,14 @@ pimcore.object.classes.data.hrefTypeahead = Class.create(pimcore.object.classes.
                     assetUploadPath: source.datax.assetUploadPath,
                     relationType: source.datax.relationType,
                     remoteOwner: source.datax.remoteOwner,
-                    lazyLoading: source.datax.lazyLoading,
                     showTrigger: source.datax.showTrigger,
                     classes: source.datax.classes,
                     objectsAllowed: source.datax.objectsAllowed,
                     assetsAllowed: source.datax.assetsAllowed,
                     assetTypes: source.datax.assetTypes,
                     documentsAllowed: source.datax.documentsAllowed,
-                    documentTypes: source.datax.documentTypes
+                    documentTypes: source.datax.documentTypes,
+                    pathFormatterClass: source.datax.pathFormatterClass
                 });
         }
     }

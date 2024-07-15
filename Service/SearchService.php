@@ -3,6 +3,7 @@
 
 namespace PimcoreHrefTypeaheadBundle\Service;
 
+use Doctrine\DBAL\Connection;
 use Pimcore\Db;
 use Pimcore\Model\Element;
 use Pimcore\Model\DataObject;
@@ -18,7 +19,8 @@ use Symfony\Component\EventDispatcher\EventDispatcherInterface;
  */
 class SearchService
 {
-
+    /** @var Connection */
+    private $db;
     /** @var array */
     private $types;
     /** @var array */

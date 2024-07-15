@@ -3,7 +3,8 @@
 namespace PimcoreHrefTypeaheadBundle\Controller;
 
 use PimcoreHrefTypeaheadBundle\Service\SearchBuilder;
-use Pimcore\Bundle\AdminBundle\Controller\AdminController;
+use Pimcore\Controller\Traits\JsonHelperTrait;
+use Pimcore\Controller\UserAwareController;
 use Pimcore\Bundle\AdminBundle\Helper\QueryParams;
 use Pimcore\Logger;
 use Pimcore\Model\Element;
@@ -20,8 +21,10 @@ use Symfony\Component\Routing\Annotation\Route;
  * @Route("/admin/href-typeahead")
  * @package PimcoreHrefTypeaheadBundle\Controller
  */
-class DefaultController extends AdminController
+class DefaultController extends UserAwareController
 {
+     use JsonHelperTrait;
+
     /**
      * @param Request $request
      * @param SearchBuilder $searchBuilder
@@ -35,6 +38,11 @@ class DefaultController extends AdminController
         $formatterClass = $request->get('formatterClass');
         $className = $request->get('class');
         $fieldName = $request->get('fieldName'); // fieldName used to find field definition if needed
+        if ($request->get('context')) {
+            $context = $this->decodeJson($request->get('context'));
+        } else {
+            $context = [];
+        }
 
         $source = null;
         $sourceClass = null;
@@ -78,7 +86,7 @@ class DefaultController extends AdminController
 
             $elements = [];
             foreach ($valueObjs as $valueObj) {
-                $label = $this->getNicePath($formatterClass, $valueObj, $source);
+                $label = $this->getNicePath($fd, $valueObj, $source);
                 $elements[] = $this->formatElement($valueObj, $label);
             }
 
@@ -95,7 +103,7 @@ class DefaultController extends AdminController
         $considerChildTags = $request->get('considerChildTags') === 'true';
         $sortingSettings = QueryParams::extractSortingSettings($request->request->all());
         $searchService = $searchBuilder
-            ->withUser($this->getAdminUser())
+            ->withUser($this->getPimcoreUser())
             ->withTypes(['object'])
             ->withSubTypes(['object'])
             ->withClassNames([$className])
@@ -121,9 +129,9 @@ class DefaultController extends AdminController
             $element = Element\Service::getElementById($hit->getId()->getType(), $hit->getId()->getId());
             if ($element->isAllowed('list')) {
                 if ($element->getType() === 'object') {
-                    $label = $this->getNicePath($formatterClass, $element, $source);
+                    $label = $this->getNicePath($fd, $element, $source);
                 } else {
-                    $label = (string)$element;
+                    $label = (string) $element;
                 }
                 $elements[] = $this->formatElement($element, $label);
             }
@@ -136,7 +144,55 @@ class DefaultController extends AdminController
             $totalMatches = count($elements);
         }
 
-        return $this->adminJson(['data' => $elements, 'success' => true, 'total' => $totalMatches]);
+        return $this->jsonResponse(['data' => $elements, 'success' => true, 'total' => $totalMatches]);
+    }
+
+    /**
+     * @param DataObject\Concrete $source
+     * @param array $context
+     *
+     * @return bool|DataObject\ClassDefinition\Data|null
+     *
+     * @throws \Exception
+     */
+    protected function getNicePathFormatterFieldDefinition($source, $context)
+    {
+        $ownerType = $context['containerType'];
+        $fieldname = $context['fieldname'];
+        $fd = null;
+
+        if ($ownerType == 'object') {
+            $subContainerType = isset($context['subContainerType']) ? $context['subContainerType'] : null;
+            if ($subContainerType) {
+                $subContainerKey = $context['subContainerKey'];
+                $subContainer = $source->getClass()->getFieldDefinition($subContainerKey);
+                if (method_exists($subContainer, 'getFieldDefinition')) {
+                    $fd = $subContainer->getFieldDefinition($fieldname);
+                }
+            } else {
+                $fd = $source->getClass()->getFieldDefinition($fieldname);
+            }
+        } elseif ($ownerType == 'localizedfield') {
+            $localizedfields = $source->getClass()->getFieldDefinition('localizedfields');
+            if ($localizedfields instanceof DataObject\ClassDefinition\Data\Localizedfields) {
+                $fd = $localizedfields->getFieldDefinition($fieldname);
+            }
+        } elseif ($ownerType == 'objectbrick') {
+            $fdBrick = DataObject\Objectbrick\Definition::getByKey($context['containerKey']);
+            $fd = $fdBrick->getFieldDefinition($fieldname);
+        } elseif ($ownerType == 'fieldcollection') {
+            $containerKey = $context['containerKey'];
+            $fdCollection = DataObject\Fieldcollection\Definition::getByKey($containerKey);
+            if (($context['subContainerType'] ?? null) === 'localizedfield') {
+                /** @var DataObject\ClassDefinition\Data\Localizedfields $fdLocalizedFields */
+                $fdLocalizedFields = $fdCollection->getFieldDefinition('localizedfields');
+                $fd = $fdLocalizedFields->getFieldDefinition($fieldname);
+            } else {
+                $fd = $fdCollection->getFieldDefinition($fieldname);
+            }
+        }
+
+        return $fd;
     }
 
     /**
@@ -157,46 +213,36 @@ class DefaultController extends AdminController
     }
 
     /**
-     * @param string $formatterClass
+     * @param $fd
      * @param AbstractElement $element
      * @param DataObject\Concrete $source
      * @return array|mixed
      */
-    private function getNicePath($formatterClass, $element, $source)
+    private function getNicePath($element, $source, $context)
     {
         if (!$element) {
             return null;
         }
+        
+        $fd = $this->getNicePathFormatterFieldDefinition($source, $context);
+        $result = []; 
+        if ($fd instanceof DataObject\ClassDefinition\PathFormatterAwareInterface) {
+            $formatter = $fd->getPathFormatterClass();
+            
+            if (null !== $formatter) {
+                $pathFormatter = DataObject\ClassDefinition\Helper\PathFormatterResolver::resolvePathFormatter(
+                    $fd->getPathFormatterClass()
+                );
 
-        if ($formatterClass) {
-            if (
-                Tool::classExists($formatterClass) &&
-                is_a($formatterClass, DataObject\ClassDefinition\PathFormatterInterface::class, true)
-            ) {
-                $key = Element\Service::getType($element) . '_' . $element->getId();
-                $target = [
-                    $key => [
-                        'dest_id' => $element->getId(),
-                        'id' => $element->getId(),
-                        'type' => Element\Service::getType($element),
-                        'subtype' => $element->getType(),
-                        'path' => $element->getPath(),
-                        'index' => 0,
-                        'nicePathKey' => $key,
-                    ]
-                ];
-
-                $result = [];
-                $result = call_user_func($formatterClass . '::formatPath', $result, $source, $target, []);
-                $result = current($result);
-
-                return $result;
-            } else {
-                Logger::error('Formatter Class does not exist: ' . $formatterClass);
+                if ($pathFormatter instanceof DataObject\ClassDefinition\PathFormatterInterface) {
+                    $result = $pathFormatter->formatPath($result, $source, [$element], [
+                        'fd' => $fd,
+                        'context' => $context,
+                    ]);
+                }
             }
         }
-
-        // Fall back to whatever the string representation would be
-        return (string)$element;
+        
+        return $result[$element->getId()] ?? '';
     }
 }
